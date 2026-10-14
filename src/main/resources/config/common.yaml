@@ -1,0 +1,50 @@
+# =========================================================================
+# Common (env-independent) properties for the Returned-Mail API.
+# Values here are placeholders — replace during lift-and-shift.
+# =========================================================================
+
+# Returned-mail routing / scheduling
+returnedMail:
+  queue: "returnedmail.sub"
+  cron: "0 0/15 * * * ?"          # every 15 min (align with source app before go-live)
+  batcher:
+    batchSize: 50
+
+# IDP / CCH extraction + classification details lookup
+rtnMailIdpDb:
+  path: "/idp/details"
+  retry:
+    attempts: 3
+    delayMs: 2000
+
+idpDb:
+  idpdetails: "REPLACE_SUBSCRIPTION_KEY"
+
+ocpapimtrace: "false"
+
+# Melissa / NCOA address-lookup facade
+addressLookup:
+  path: "/melissa/batch"
+  responsetimeout: 30000
+  attempts: 3
+  reconnection: 2000
+  melissakey: "REPLACE_MELISSA_KEY"
+  headers:
+    subscriptionKeyName: "Ocp-Apim-Subscription-Key"
+  batch:
+    retry:
+      attempts: 3
+      delayMs: 2000
+
+# AWD work item
+awdworkitem:
+  retrievepath: "/awd/workitem"
+  attempts: 3
+  reconnection: 2000
+awdkey: "REPLACE_AWD_KEY"
+appId: "REPLACE_APP_ID"
+
+# Azure Service Bus reconnection
+azure:
+  reconnection-attempts: 3
+  reconnection-frequency: 2000

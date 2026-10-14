@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:munit="http://www.mulesoft.org/schema/mule/munit"
+	xmlns:munit-tools="http://www.mulesoft.org/schema/mule/munit-tools"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/munit http://www.mulesoft.org/schema/mule/munit/current/mule-munit.xsd
+http://www.mulesoft.org/schema/mule/munit-tools http://www.mulesoft.org/schema/mule/munit-tools/current/mule-munit-tools.xsd">
+
+	<!-- Placeholder suite — add real coverage as flow bodies are lifted in. -->
+	<munit:config name="returned-mail-flow-test-suite.xml" />
+
+	<munit:test name="token_generation-returns-access-token" doc:id="30000000-0000-0000-0000-000000000001" description="token_generation stub returns an access_token key">
+		<munit:execution>
+			<flow-ref doc:name="token_generation" name="token_generation" />
+		</munit:execution>
+		<munit:validation>
+			<munit-tools:assert-that doc:name="has access_token" expression="#[payload.access_token]" is="#[MunitTools::notNullValue()]" />
+		</munit:validation>
+	</munit:test>
+
+</mule>

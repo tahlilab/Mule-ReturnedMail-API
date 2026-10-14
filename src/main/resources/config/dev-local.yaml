@@ -1,0 +1,50 @@
+# =========================================================================
+# dev-local environment properties for the Returned-Mail API.
+# Secrets (${...}) should be supplied as JVM args or a secure vault, never
+# committed. Placeholders below are for local scaffolding only.
+# =========================================================================
+
+mulenv: "dev-local"
+
+# TLS trust store (shared JKS) — supply real path/password at runtime
+certpath: "src/main/resources/truststore.jks"
+certpwd: "changeit"
+
+# OAuth token endpoint
+token:
+  host: "localhost"
+  port: "443"
+  client_id: "REPLACE_CLIENT_ID"
+  cs: "REPLACE_CLIENT_SECRET"      # inject via -Dtoken.cs=... at runtime
+
+# Azure Service Bus
+azure:
+  service-namespace: "REPLACE_NAMESPACE"
+  tenantId: "REPLACE_TENANT_ID"
+
+# Melissa facade host
+addressLookup:
+  host: "localhost"
+  port: "443"
+
+# AWD host
+awdworkitem:
+  host: "localhost"
+  port: "443"
+
+# Alfresco host
+alfresco:
+  host: "localhost"
+  port: "443"
+
+# IDP details host
+rtnMailIdpDb:
+  host: "localhost"
+  port: "443"
+
+# SQL Server
+db:
+  url: "jdbc:sqlserver://localhost:1433;databaseName=USOpsSTP;encrypt=true;trustServerCertificate=true"
+  driver: "com.microsoft.sqlserver.jdbc.SQLServerDriver"
+  user: "REPLACE_DB_USER"
+  pwd: "REPLACE_DB_PWD"            # inject via -Ddb.pwd=... at runtime

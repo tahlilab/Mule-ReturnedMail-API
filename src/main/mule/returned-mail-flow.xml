@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:azure-service-bus-messaging="http://www.mulesoft.org/schema/mule/azure-service-bus-messaging"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/azure-service-bus-messaging http://www.mulesoft.org/schema/mule/azure-service-bus-messaging/current/mule-azure-service-bus-messaging.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+
+	<!-- ================================================================= -->
+	<!--  RETURNED-MAIL — HIGH-LEVEL FLOW SKELETON                          -->
+	<!--                                                                     -->
+	<!--  This is the boilerplate wireframe for the returned-mail capability -->
+	<!--  being lifted out of Mule-Jhindexing-API. Each flow below shows the -->
+	<!--  high-level steps only; drop the real transforms/logic in at the    -->
+	<!--  TODO markers during lift-and-shift.                                -->
+	<!--                                                                     -->
+	<!--  Flows:                                                             -->
+	<!--   1. subscribe  — ASB listener on returnedmail.sub → rules → route  -->
+	<!--   2. batcher    — cron → drain address-lookup-req → Melissa batch   -->
+	<!--   3. resp        — ASB listener on address-lookup-resp → AWD/Alfresco-->
+	<!-- ================================================================= -->
+
+	<!-- ============================================================ -->
+	<!-- 1. SUBSCRIBE: traffic-cop → returnedmail.sub → exclusion rules -->
+	<!-- ============================================================ -->
+	<flow name="returned-mail-subscribeFlow" doc:id="855daff5-235d-4d05-afcb-22c10e009606">
+		<azure-service-bus-messaging:message-listener doc:name="On New Message (returnedmail.sub)" doc:id="a10d0ae3-2b3d-48ac-8d74-c0ba12efddee" config-ref="Azure_Service_Bus_Messaging_Connector_Config" destinationName="${returnedMail.queue}" ackMode="AUTO">
+			<azure-service-bus-messaging:response sendCorrelationStrategy="ALWAYS" />
+		</azure-service-bus-messaging:message-listener>
+		<logger level="INFO" doc:name="log start" message='#["returned-mail subscribe received: " ++ (correlationId default "")]' />
+
+		<!-- TODO: lift-and-shift — set vars (idpTransactionId, alfrescoNodeId, eventId) -->
+		<flow-ref doc:name="token_generation" name="token_generation" target="access_token" targetValue="#[payload.access_token]" />
+		<flow-ref doc:name="fetch idp details" name="returned-mail-fetchIdp-details" />
+
+		<!-- TODO: lift-and-shift — rules vars (malt / dn39 / isAmerica / incompleteAddress) -->
+		<!-- TODO: lift-and-shift — exclusion decision (set vars.excluded + vars.exclusionReason) -->
+		<!-- TODO: lift-and-shift — build AWD update payload (dwl/rtnMailAWDupdate1.dwl) -->
+		<flow-ref doc:name="update-awd-workitemSub_Flow" name="update-awd-workitemSub_Flow" target="awdWorkItemUpdateResponse" />
+
+		<choice doc:name="excluded?">
+			<when expression="#[vars.excluded default true]">
+				<logger level="INFO" doc:name="excluded log" message='#["record excluded from NCOA lookup: " ++ (vars.exclusionReason default "")]' />
+			</when>
+			<otherwise>
+				<!-- TODO: lift-and-shift — build queue payload (dwl/rtnMailPostQueue1.dwl) -->
+				<azure-service-bus-messaging:send destinationName="mulegenai-address-lookup-req" doc:name="publishAddressLookupReqQueue" config-ref="Azure_Service_Bus_Messaging_Connector_Config" correlationId="#[correlationId]" sendCorrelationStrategy="ALWAYS" />
+				<logger level="INFO" doc:name="published log" message='#["payload posted to mulegenai-address-lookup-req"]' />
+			</otherwise>
+		</choice>
+
+		<flow-ref doc:name="address_lookup_tracking_table_Flow" name="address_lookup_tracking_table_Flow" />
+		<ee:transform doc:name="success">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ "message": "success" }]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler>
+			<on-error-propagate type="ANY" doc:name="log then propagate" logException="false">
+				<logger level="ERROR" doc:name="subscribe failed" message='#["subscribe flow FAILED: " ++ (error.description default "")]' />
+				<flow-ref doc:name="process-common-logger-sub-flow" name="process-common-logger-sub-flow" />
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+
+	<!-- IDP / CCH extraction + classification details lookup -->
+	<flow name="returned-mail-fetchIdp-details" doc:id="f401bb36-2b80-4308-8b9f-3f259ee6b6f8">
+		<http:request method="GET" doc:name="fetch idp details" config-ref="fetch_rtnMail_idpDetails_request_config" path="#[p('rtnMailIdpDb.path')]">
+			<reconnect frequency="${rtnMailIdpDb.retry.delayMs}" count="${rtnMailIdpDb.retry.attempts}" />
+			<http:headers><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+	"Ocp-Apim-Subscription-Key": p('idpDb.idpdetails'),
+	"Ocp-Apim-Trace": p('ocpapimtrace'),
+	"Authorization": "Bearer " ++ (vars.access_token default "")
+}]]]></http:headers>
+			<http:uri-params><![CDATA[#[output application/java
+---
+{ "idpTransactionId": vars.idpTranscationId default "" }]]]></http:uri-params>
+		</http:request>
+		<logger level="INFO" doc:name="idp details fetched" message='#["IDP/CCH details fetched for txn " ++ (vars.idpTranscationId default "")]' />
+	</flow>
+
+	<!-- ============================================================ -->
+	<!-- 2. BATCHER: cron → drain address-lookup-req → Melissa batch   -->
+	<!-- ============================================================ -->
+	<flow name="returned-mail-batcherFlow" doc:id="bceae842-4305-4697-8dd5-22b0bc194e31">
+		<scheduler doc:name="Scheduler">
+			<scheduling-strategy>
+				<cron expression="${returnedMail.cron}" timeZone="America/New_York" />
+			</scheduling-strategy>
+		</scheduler>
+		<logger level="INFO" doc:name="batch started" message='#["returned-mail batch job started"]' />
+		<!-- TODO: lift-and-shift — set jobId, drain queue into vars.collectedMessages (foreach + receive, -->
+		<!--       tolerate AZURE-SERVICE-BUS-MESSAGING:OPERATION_TIMEOUT as empty-queue signal) -->
+		<choice doc:name="any messages?">
+			<when expression="#[sizeOf(payload default []) &gt; 0]">
+				<flow-ref doc:name="returned-mail-queue-listener" name="returned-mail-queue-listener" />
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="skip empty batch" message='#["empty batch — skipping Melissa call"]' />
+			</otherwise>
+		</choice>
+		<error-handler>
+			<on-error-propagate type="ANY" doc:name="batch failed">
+				<logger level="ERROR" doc:name="batch failed log" message='#["receive batch flow failed: " ++ (error.description default "")]' />
+				<flow-ref doc:name="process-common-logger-sub-flow" name="process-common-logger-sub-flow" />
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+
+	<!-- Assembles the Melissa request from the drained batch and dispatches -->
+	<flow name="returned-mail-queue-listener" doc:id="f8928f02-b6bb-4fe3-9e84-c2f2da3bb055">
+		<logger level="INFO" doc:name="batch received" message='#["payload received from address-lookup-req queue"]' />
+		<!-- TODO: lift-and-shift — assemble facade request (dwl/rtnMailMelissaReq.dwl) -->
+		<flow-ref doc:name="request to melissa rest endpoint" name="returned-mail-melissa" />
+	</flow>
+
+	<!-- OAuth → POST batch to Melissa → enrich → fan out to resp queue -->
+	<sub-flow name="returned-mail-melissa" doc:id="7ebd874c-081e-48fc-9c1b-ff17a23bf823">
+		<flow-ref doc:name="token_generation" name="token_generation" target="access_token" targetValue="#[payload.access_token]" />
+		<ee:transform doc:name="snapshot request to vars.postLoad">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+			<ee:variables>
+				<ee:set-variable variableName="postLoad"><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-variable>
+			</ee:variables>
+		</ee:transform>
+		<until-successful maxRetries="${addressLookup.batch.retry.attempts}" doc:name="until-successful" millisBetweenRetries="${addressLookup.batch.retry.delayMs}">
+			<http:request method="POST" doc:name="POST Melissa batch" config-ref="melissaFacade_HTTP_Request_configuration" path="#[p('addressLookup.path')]">
+				<http:headers><![CDATA[#[output application/java
+---
+{
+	"Authorization": "Bearer " ++ (vars.access_token default ""),
+	"Content-Type": "application/json",
+	"Accept": "application/json",
+	(p('addressLookup.headers.subscriptionKeyName')): p('addressLookup.melissakey'),
+	"x-correlation-id": correlationId default "",
+	"x-job-id": vars.jobId default ""
+}]]]></http:headers>
+			</http:request>
+		</until-successful>
+		<logger level="INFO" doc:name="melissa success" message='#["Melissa NCOA lookup success, facadeCode=" ++ (payload.code default "")]' />
+		<!-- TODO: lift-and-shift — enrich responseRecords with originating requestObject, then fan out below -->
+		<foreach doc:name="publish each resp record" collection="#[payload.details.responseRecords default []]">
+			<azure-service-bus-messaging:send destinationName="mulegenai-address-lookup-resp" doc:name="publish resp envelope" config-ref="Azure_Service_Bus_Messaging_Connector_Config" sendCorrelationStrategy="ALWAYS" correlationId="#[payload.requestObject.correlationId default vars.jobId]" />
+		</foreach>
+		<logger level="INFO" doc:name="batch published" message='#["batch response published to mulegenai-address-lookup-resp"]' />
+	</sub-flow>
+
+	<!-- ============================================================ -->
+	<!-- 3. RESP: address-lookup-resp → AWD update / Alfresco clone     -->
+	<!-- ============================================================ -->
+	<flow name="returned-mail-respFlow" doc:id="2e6987a9-ac1c-47fd-940c-700d7dfdf3f8">
+		<azure-service-bus-messaging:message-listener doc:name="On New Message (address-lookup-resp)" config-ref="Azure_Service_Bus_Messaging_Connector_Config" ackMode="AUTO" destinationName="mulegenai-address-lookup-resp">
+			<azure-service-bus-messaging:response sendCorrelationStrategy="NEVER" />
+		</azure-service-bus-messaging:message-listener>
+		<logger level="INFO" doc:name="resp received" message='#["message received on address-lookup-resp, status=" ++ (payload.status default "")]' />
+		<!-- TODO: lift-and-shift — set vars (status, alfrescoNodeId, businessArea, awdWorkItemId, originals) -->
+		<flow-ref doc:name="token_generation" name="token_generation" target="access_token" targetValue="#[payload.access_token]" />
+		<!-- TODO: lift-and-shift — AWD update payload (dwl/rtnMailAWDupdate2.dwl) -->
+		<flow-ref doc:name="update-awd-workitemSub_Flow" name="update-awd-workitemSub_Flow" target="awdWorkItemUpdateResponse" />
+		<flow-ref doc:name="address_lookup_tracking_table_Flow" name="address_lookup_tracking_table_Flow" />
+		<choice doc:name="NCOA status == Match?">
+			<when expression='#[vars.status == "Match"]'>
+				<logger level="INFO" doc:name="match log" message='#["status matched — clone Alfresco node + create new AWD"]' />
+				<!-- TODO: lift-and-shift — Alfresco clone, retrieve AWD, create new work item, final AWD update -->
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="no match log" message='#["NCOA no-match — no further action"]' />
+			</otherwise>
+		</choice>
+		<error-handler>
+			<on-error-continue type="ANY" doc:name="park resp (no requeue)" logException="true">
+				<logger level="ERROR" doc:name="parked resp" message='#["resp processing failed, parking: " ++ (error.description default "")]' />
+				<flow-ref doc:name="process-common-logger-sub-flow" name="process-common-logger-sub-flow" />
+			</on-error-continue>
+		</error-handler>
+	</flow>
+
+</mule>

@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+
+	<!-- ================================================================= -->
+	<!--  SHARED SUB-FLOWS — STUBS                                          -->
+	<!--                                                                     -->
+	<!--  Placeholder implementations for the shared helpers the returned-   -->
+	<!--  mail flows depend on. Replace each body with the real logic        -->
+	<!--  during lift-and-shift from Mule-Jhindexing-API.                    -->
+	<!-- ================================================================= -->
+
+	<!-- OAuth2 client-credentials token. Caller uses target="access_token". -->
+	<sub-flow name="token_generation" doc:id="10000000-0000-0000-0000-000000000001">
+		<logger level="DEBUG" doc:name="TODO token_generation" message='#["TODO: lift-and-shift token_generation (POST to token endpoint, return { access_token })"]' />
+		<ee:transform doc:name="stub token">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ "access_token": "REPLACE_ME" }]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+
+	<!-- Updates an AWD work item. Caller uses target="awdWorkItemUpdateResponse". -->
+	<sub-flow name="update-awd-workitemSub_Flow" doc:id="10000000-0000-0000-0000-000000000002">
+		<logger level="DEBUG" doc:name="TODO update AWD" message='#["TODO: lift-and-shift update-awd-workitemSub_Flow (PUT/POST to AWD work item API)"]' />
+		<ee:transform doc:name="stub awd response">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{ "status": "stub" }]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</sub-flow>
+
+	<!-- Inserts/updates the address-lookup tracking row in SQL Server. -->
+	<sub-flow name="address_lookup_tracking_table_Flow" doc:id="10000000-0000-0000-0000-000000000003">
+		<logger level="DEBUG" doc:name="TODO tracking table" message='#["TODO: lift-and-shift address_lookup_tracking_table_Flow (DB insert/update via USOpsSTP_Database_Config)"]' />
+	</sub-flow>
+
+	<!-- Clones the Alfresco node + updates metadata. Caller uses target="cloneData". -->
+	<sub-flow name="alfresco-copy-update_Flow" doc:id="10000000-0000-0000-0000-000000000004">
+		<logger level="DEBUG" doc:name="TODO alfresco copy" message='#["TODO: lift-and-shift alfresco-copy-update_Flow (copy node + set jh:businessArea)"]' />
+	</sub-flow>
+
+	<!-- Creates a new AWD work item (v2). -->
+	<sub-flow name="awd-workItemv2_Flow" doc:id="10000000-0000-0000-0000-000000000005">
+		<logger level="DEBUG" doc:name="TODO create AWD v2" message='#["TODO: lift-and-shift awd-workItemv2_Flow (create new AWD work item)"]' />
+	</sub-flow>
+
+</mule>

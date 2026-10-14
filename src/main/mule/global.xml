@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:tls="http://www.mulesoft.org/schema/mule/tls"
+	xmlns:azure-service-bus-messaging="http://www.mulesoft.org/schema/mule/azure-service-bus-messaging"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/azure-service-bus-messaging http://www.mulesoft.org/schema/mule/azure-service-bus-messaging/current/mule-azure-service-bus-messaging.xsd
+http://www.mulesoft.org/schema/mule/tls http://www.mulesoft.org/schema/mule/tls/current/mule-tls.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+
+	<!-- ============================================================= -->
+	<!--  Returned-Mail API — global configuration                      -->
+	<!--  Trimmed from Mule-Jhindexing-API to only the configs the      -->
+	<!--  returned-mail flow depends on. Review before lift-and-shift.  -->
+	<!-- ============================================================= -->
+
+	<configuration-properties doc:name="env properties" doc:id="cef17271-1380-4161-b469-4b1cd1ba93ea" file="config/${mulenv}.yaml" />
+	<configuration-properties doc:name="common properties" doc:id="cbac4cb8-0ae8-471c-81f0-551bd674b803" file="config/common.yaml" />
+
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="6054df19-2ede-4c1a-8a36-1fcceeccfe90">
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+
+	<!-- OAuth token endpoint -->
+	<http:request-config name="token_HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="aa273269-cb72-4daa-b54f-2dc448a06f68">
+		<http:request-connection protocol="HTTPS" host="#[p('token.host')]" port="#[p('token.port')]" />
+	</http:request-config>
+
+	<!-- Melissa / address-lookup facade -->
+	<http:request-config name="melissaFacade_HTTP_Request_configuration" doc:name="Melissa Facade HTTP Request configuration" doc:id="0d108e65-d733-46bb-8711-c6b7832da5b0" responseTimeout="${addressLookup.responsetimeout}">
+		<http:request-connection protocol="HTTPS" host="#[p('addressLookup.host')]" port="#[p('addressLookup.port')]">
+			<reconnection>
+				<reconnect count="${addressLookup.attempts}" frequency="${addressLookup.reconnection}" />
+			</reconnection>
+			<tls:context>
+				<tls:trust-store path="${certpath}" password="${certpwd}" type="jks" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+
+	<!-- AWD work item -->
+	<http:request-config name="awd_WorkItem_HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="523d533c-8d37-45a7-883e-416a03640abf" responseTimeout="60000">
+		<http:request-connection host="#[p('awdworkitem.host')]" port="#[p('awdworkitem.port')]" protocol="HTTPS">
+			<tls:context>
+				<tls:trust-store path="${certpath}" password="${certpwd}" type="jks" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+
+	<!-- Alfresco -->
+	<http:request-config name="alfresco_HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="7938485f-19a4-492a-b13f-0374278e77d9">
+		<http:request-connection protocol="HTTPS" host="#[p('alfresco.host')]" port="#[p('alfresco.port')]">
+			<tls:context>
+				<tls:trust-store path="${certpath}" password="${certpwd}" type="jks" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+
+	<!-- IDP details lookup (CCH extraction/classification) -->
+	<http:request-config name="fetch_rtnMail_idpDetails_request_config" doc:name="HTTP Request configuration" doc:id="b9a550e5-64b2-4aaf-9ee7-ce5574e7f42b">
+		<http:request-connection protocol="HTTPS" host="#[p('rtnMailIdpDb.host')]" port="#[p('rtnMailIdpDb.port')]">
+			<tls:context>
+				<tls:trust-store insecure="true" />
+			</tls:context>
+		</http:request-connection>
+	</http:request-config>
+
+	<!-- Azure Service Bus (business queues/topics) -->
+	<azure-service-bus-messaging:config name="Azure_Service_Bus_Messaging_Connector_Config" doc:name="Azure Service Bus Messaging Connector Config" doc:id="26597e51-4251-4220-afb2-07ec627b29eb">
+		<azure-service-bus-messaging:aad-connection namespace="#[p('azure.service-namespace')]" tenantId="#[p('azure.tenantId')]" clientId="#[p('token.client_id')]" clientSecret="${token.cs}">
+			<reconnection>
+				<reconnect count="${azure.reconnection-attempts}" frequency="${azure.reconnection-frequency}" />
+			</reconnection>
+		</azure-service-bus-messaging:aad-connection>
+	</azure-service-bus-messaging:config>
+
+	<!-- SQL Server — address-lookup tracking / audit -->
+	<db:config name="USOpsSTP_Database_Config" doc:name="Database Config" doc:id="9b5aeccc-2def-458e-8fdf-1f21a0a38912">
+		<db:generic-connection url="#[p('db.url')]" driverClassName="${db.driver}" user="#[p('db.user')]" password="${db.pwd}" />
+	</db:config>
+
+</mule>

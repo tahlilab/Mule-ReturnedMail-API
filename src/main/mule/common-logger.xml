@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd">
+
+	<!-- ================================================================= -->
+	<!--  COMMON LOGGER — STUB                                              -->
+	<!--                                                                     -->
+	<!--  Centralised failure/audit logger. In Mule-Jhindexing-API this     -->
+	<!--  publishes to the common-logger ASB topic + audit DB. Replace with  -->
+	<!--  the real implementation during lift-and-shift.                     -->
+	<!-- ================================================================= -->
+	<sub-flow name="process-common-logger-sub-flow" doc:id="20000000-0000-0000-0000-000000000001">
+		<logger level="INFO" doc:name="common logger" message='#[%dw 2.0
+output application/json
+---
+{
+	"correlationId": correlationId default "",
+	"message": "common-logger (stub) — TODO wire to common-logger ASB topic + audit DB",
+	"errorType": (error.errorType.namespace default "") ++ ":" ++ (error.errorType.identifier default ""),
+	"errorDescription": error.description default ""
+}]' />
+	</sub-flow>
+
+</mule>
